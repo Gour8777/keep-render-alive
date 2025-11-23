@@ -1,0 +1,17 @@
+name: Keep Render Alive
+
+on:
+  schedule:
+    - cron: "*/1 * * * *"   # Run every 1 minute
+  workflow_dispatch:         # Allow manual run
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Ping Render Backends
+        run: |
+          echo "Pinging Render URLs..."
+          curl -m 10 https://cc-backend-ei7t.onrender.com/
+          curl -m 10 https://finance-backend-lnok.onrender.com/
