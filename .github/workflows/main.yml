@@ -2,14 +2,44 @@ name: Keep Render Alive
 
 on:
   schedule:
-    - cron: "*/1 * * * *"
+    # Every 12 minutes (safe under Render ~15 min sleep window)
+    - cron: "*/12 * * * *"
   workflow_dispatch:
 
 jobs:
   ping:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+
     steps:
-      - name: Ping Render Backends
+      - name: Ping Render Backends (with retries + cold-start buffer)
+        shell: bash
         run: |
-          curl -m 10 https://cc-backend-ei7t.onrender.com/
-          curl -m 10 https://finance-backend-lnok.onrender.com/
+          set +e  # don't fail the whole job on one curl failure
+
+          URLS=(
+            "https://cc-backend-ei7t.onrender.com/health"
+            "https://finance-backend-lnok.onrender.com/"
+          )
+
+          for url in "${URLS[@]}"; do
+            echo "=============================="
+            echo "Pinging: $url"
+            echo "Time: $(date -u)"
+            
+            # -m 60  -> allow up to 60s for cold start
+            # --retry 3 -> retry transient network issues
+            # --retry-delay 5 -> wait 5s between retries
+            # -f -> fail on non-2xx responses
+            curl -sS -f -m 60 --retry 3 --retry-delay 5 "$url"
+            exit_code=$?
+
+            if [ $exit_code -ne 0 ]; then
+              echo "⚠️ Ping failed for $url (exit $exit_code). Continuing..."
+            else
+              echo "✅ Ping success for $url"
+            fi
+          done
+
+          echo "=============================="
+          echo "Done."
